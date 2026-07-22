@@ -14,6 +14,7 @@ Botforje-js lets you create and manage multiple WhatsApp bots by simply editing 
 - **Multiple Bots**: Run several WhatsApp bots from one server
 - **YAML Configuration**: Define bot behavior in simple YAML files
 - **Actions & Graphs**: Build conversation state machines with fuzzy-matched edges
+- **Scopes**: Multi-tenant namespacing — multiple clients can have bots with the same name
 - **Requests**: Connect to your existing apps via HTTP
 - **REST API**: Send messages programmatically (optional)
 - **Systemd Service**: Run as a proper system service with auto-restart
@@ -65,19 +66,42 @@ journalctl --user -u botforje-js -f    # real-time logs
 
 ### Global Configuration
 
-Configure system-wide settings at the top level of `config.yml`:
+Configure system-wide settings at the top level of `config.yml`. Entity definitions (actions, graphs, bots) can either live inline in this file (unscoped only) or in separate files under `actions/`, `graphs/`, and `bots/` directories.
 
 ```yaml
 chromium_path: "/usr/bin/chromium"  # Path to Chromium/Chrome browser
 port: 3000                         # REST API port (set to enable the API)
 address: "127.0.0.1"              # Bind address (127.0.0.1 = localhost only, 0.0.0.0 = all interfaces)
-log_level: "info"                  # Global log level
+log_level: "info"                  # Global log level: info, debug, warn, error
 default_timeout: 300               # Global default timeout for graph sessions (seconds)
+# trusted_issuers:                 # Optional — public keys for federated login (see Phase 5 in roadmap)
+#   - "https://login.example.com/.well-known/jwks.json"
 ```
+
+### File Organization
+
+Entities can be organized with optional **scopes** using subdirectories:
+
+```
+~/.config/botforje-js/
+  config.yml               # global settings + optional unscoped inline entities
+  actions/                 # unscoped actions (admin)
+    greet.yml
+    client-a/              # scoped actions (client-a)
+      greet.yml
+  graphs/                  # unscoped graphs
+    client-a/              # scoped graphs
+      faq.yml
+  bots/                    # unscoped bots
+    client-a/              # scoped bots
+      support.yml
+```
+
+File names become the entity name. The subdirectory (e.g. `client-a`) is the scope. See [Scopes & Multi-Tenancy](#scopes--multi-tenancy) above for details.
 
 ### Architecture
 
-Botforje-js uses three catalogs — **Actions**, **Graphs**, and **Bots** — all defined in a single YAML map:
+Botforje-js uses — **Actions**, **Graphs**, and **Bots** — all defined in a single YAML map or spread across modular files in `actions/`, `graphs/`, and `bots/` directories.
 
 - **Actions**: Reusable behaviors — text replies, request calls, cooldowns. Not tied to any specific bot.
 - **Graphs**: Conversation state machines. A graph owns a set of nodes connected by fuzzy-matched edges. Each bot references exactly one graph.
@@ -90,6 +114,38 @@ Bot
             └─ Edges (transitions based on fuzzy-matched user input)
                  └─ Actions
 ```
+
+### Scopes & Multi-Tenancy
+
+Entities (actions, graphs, bots) carry an optional **scope** for multi-tenant isolation. Scope is derived from the subdirectory path in your config:
+
+```
+~/.config/botforje-js/
+  config.yml                          # global settings (no entities)
+  actions/
+    greet.yml                         # unscoped — admin only
+    client-a/
+      greet.yml                       # scoped to "client-a"
+    client-b/
+      greet.yml                       # scoped to "client-b" — same name, different scope
+  graphs/
+    client-a/
+      faq.yml                         # scoped graph referencing client-a actions
+  bots/
+    client-a/
+      support.yml                     # scoped bot for client-a
+    client-b/
+      support.yml                     # scoped bot for client-b — same name, OK
+```
+
+**Rules:**
+- Entities in root directories (`actions/greet.yml`) are **unscoped** — visible only to the admin key.
+- Entities in subdirectories (`actions/client-a/greet.yml`) are **scoped** — visible only within that scope.
+- Names must be unique within their scope. Same name in different scopes is allowed.
+- **Strict isolation**: scoped entities can only reference other entities in the same scope. Entities without a scope can only reference other unscoped entities.
+- **Inline config** in `config.yml` only supports unscoped entities.
+
+This design enables a single botforje daemon to host hundreds of bots for independent clients without name collisions — each client's entities live in their own scope.
 
 ### Actions
 
