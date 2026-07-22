@@ -64,14 +64,16 @@ Architecture decisions already locked in:
 
 ### The Graph remains the core, fully declarative
 
-```
+```text
 Graph
  ├── Nodes
  ├── Edges
- └── State
+ └── Session State
 ```
 
 AI does **not replace** the Graph — it complements it.
+
+The conversation state belongs to the session, not to individual nodes. Nodes may read and modify state, but never own it.
 
 ### Actions as the universal extension mechanism
 
@@ -92,9 +94,9 @@ actions:
           body: "{{songs_added}} songs added."
 ```
 
-### Nodes only declare which actions are available
+### Nodes declare which actions are available
 
-The node contains no AI logic. It simply says: "while the user is here, these actions are available to the AI":
+The node contains no AI logic. It simply defines which actions the AI may invoke while processing messages associated with that node:
 
 ```yaml
 nodes:
@@ -108,23 +110,50 @@ nodes:
       - approve_package
 ```
 
-### AI has exactly two responsibilities
+### AI has two responsibilities
 
-**1. Resolve navigation** (never responds directly):
+**1. Resolve navigation**
 
-```
+```text
 Message → Fuzzy Match → Edge found? → No → LLM → Target node
 ```
 
-The LLM only decides which node to go to. If it doesn't find an appropriate one, it falls back to a `fallback_node` configurable by the developer.
+The LLM decides which node is the best fit for the incoming message. If no suitable node can be determined, execution falls back to a developer-defined `fallback_node`.
 
-**2. Execute Actions exposed by the current node**
+**2. Execute Actions exposed by the selected node**
 
-The LLM receives only: the message, the `state`, and the list of actions allowed by the active node (it can never execute actions the node hasn't exposed). Example: user writes "add Hotel California and Bohemian Rhapsody" → LLM decides `search_song()` → `add_song()` → replies to the user.
+The LLM receives only:
+
+* The incoming message
+* The current session state
+* The list of actions exposed by the node
+
+It can never execute actions that have not been explicitly exposed.
+
+A single message may result in multiple action executions.
+
+Example:
+
+```text
+User: "Add Hotel California and Bohemian Rhapsody"
+```
+
+The LLM may execute:
+
+```text
+search_song(...)
+add_song(...)
+search_song(...)
+add_song(...)
+```
+
+before producing a response.
 
 ### There are no "AI Nodes" or "AI Actions"
 
-Explicit design decision: **all nodes are just Nodes** (some simply enable AI via `ai_tools`), and **all actions are just Actions** (the only thing that changes is who invokes them: the node automatically or the AI). There's no separate category for either.
+Explicit design decision: **all nodes are just Nodes** (some simply expose actions through `ai_tools`), and **all actions are just Actions** (the only thing that changes is who invokes them: the graph runtime or the AI).
+
+There is no separate category for either.
 
 ---
 
