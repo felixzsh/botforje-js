@@ -45,6 +45,32 @@ actions:
           timeout: 10000
           retry: 3
 
+  # on_exit example — runs automatically when leaving a node
+  log_navigation:
+    steps:
+      - request:
+          name: nav-log
+          url: "https://analytics.example.com/navigation"
+          method: POST
+          headers:
+            X-API-Key: "your-analytics-key"
+          timeout: 3000
+          retry: 1
+
+  # can_use example — actions the LLM can optionally invoke, each independently
+  search_catalog:
+    steps:
+      - message:
+          body: "Let me look that up in our catalog..."
+      - request:
+          name: catalog-search
+          url: "https://api.example.com/catalog/search?q={{message}}"
+          method: GET
+          headers:
+            Authorization: "Bearer token"
+          timeout: 5000
+          retry: 1
+
   # request-only action
   lead-notify:
     steps:
@@ -108,7 +134,10 @@ graphs:
     fallback: invalid         # Where to go if user sends an unexpected response
     nodes:
       menu:
-        action: menu
+        on_enter:
+          - menu
+        on_exit:
+          - log_navigation
         edges:
           - match: "1, hours, schedule, time, hours"
             fuzzy_threshold: 0.3    # 0.3=strict, 0.6=moderate (default), 0.9=loose
@@ -124,7 +153,8 @@ graphs:
           - goto: invalid           # Default edge (no 'match'): catches everything else
 
       hours:
-        action: hours
+        on_enter:
+          - hours
         edges:
           - match: "menu, back, return, volver"
             goto: menu
@@ -133,7 +163,10 @@ graphs:
           - goto: invalid
 
       catalog:
-        action: catalog
+        on_enter:
+          - catalog
+        can_use:
+          - search_catalog
         edges:
           - match: "menu, back"
             goto: menu
@@ -142,7 +175,8 @@ graphs:
           - goto: invalid
 
       escalate:
-        action: escalate            # This action has cooldown
+        on_enter:
+          - escalate            # This action has cooldown
         edges:
           - match: "menu, back"
             goto: menu
@@ -151,7 +185,8 @@ graphs:
           - goto: invalid
 
       pricing:
-        action: pricing
+        on_enter:
+          - pricing
         edges:
           - match: "menu, back"
             goto: menu
@@ -162,19 +197,22 @@ graphs:
           - goto: invalid
 
       lead:
-        action: lead-notify
+        on_enter:
+          - lead-notify
         edges:
           - match: "menu, back"
             goto: menu
           - goto: farewell
 
       invalid:
-        action: invalid
+        on_enter:
+          - invalid
         edges:
           - goto: menu               # Always return to menu after invalid input
 
       farewell:
-        action: farewell
+        on_enter:
+          - farewell
         edges: []                    # No edges — session stays alive until timeout
 
   # Minimal single-node graph
@@ -182,7 +220,8 @@ graphs:
     root: ping
     nodes:
       ping:
-        action: pong
+        on_enter:
+          - pong
         edges: []
 
 # Bot definitions — keys are the bot IDs, each bot references exactly one graph
@@ -226,5 +265,8 @@ bots:
 # - Action cooldowns prevent spam (per sender per action)
 # - Graph sessions automatically expire after timeout seconds of inactivity
 # - fallback handles unexpected user responses without breaking the graph
-# - Action reply templates support {{senderPhone}}, {{senderName}}, {{message}}, {{bot.id}}, {{variables.name}}
+# - Node fields:
+#     on_enter: actions executed automatically when entering the node
+#     on_exit:  actions executed automatically just before leaving the node
+#     can_use: actions the LLM can optionally invoke, each independently (only when AI mode is enabled)
 # - Location actions send a WhatsApp location pin; fields: latitude, longitude, name, address, url, description

@@ -103,7 +103,7 @@ nodes:
   create_package:
     on_enter:
       - welcome
-    ai_tools:
+    can_use:
       - search_song
       - add_song
       - remove_song
@@ -151,7 +151,7 @@ before producing a response.
 
 ### There are no "AI Nodes" or "AI Actions"
 
-Explicit design decision: **all nodes are just Nodes** (some simply expose actions through `ai_tools`), and **all actions are just Actions** (the only thing that changes is who invokes them: the graph runtime or the AI).
+Explicit design decision: **all nodes are just Nodes** (some simply expose actions through `can_use`), and **all actions are just Actions** (the only thing that changes is who invokes them: the graph runtime or the AI).
 
 There is no separate category for either.
 
