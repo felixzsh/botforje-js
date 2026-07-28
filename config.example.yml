@@ -64,12 +64,34 @@ actions:
           body: "Let me look that up in our catalog..."
       - request:
           name: catalog-search
-          url: "https://api.example.com/catalog/search?q={{message}}"
+          url: "https://api.example.com/catalog/search?q={{message.body}}"
           method: GET
           headers:
             Authorization: "Bearer token"
           timeout: 5000
           retry: 1
+
+  # Dual request + responses chaining — two requests feed into a single message
+  build-order:
+    steps:
+      - request:
+          name: product-info
+          url: "https://api.example.com/products/lookup"
+          method: POST
+          headers:
+            Authorization: "Bearer your-api-token"
+      - request:
+          name: shipping-rate
+          url: "https://api.example.com/shipping/rate?zip={{responses.product-info.zip}}"
+          method: GET
+          headers:
+            Authorization: "Bearer your-api-token"
+      - message:
+          body: |
+            Order summary:
+            Product: {{responses.product-info.name}}
+            Price: ${{responses.product-info.price}}
+            Shipping: ${{responses.shipping-rate.cost}}
 
   # request-only action
   lead-notify:
@@ -125,13 +147,16 @@ actions:
           address: "Av. Reforma 123, CDMX"
 
 # Graph Catalog — conversation state machines owned by a single bot
-# Each graph has a root node, optional timeout, optional fallback, and a map of nodes
+# Each graph has a root node, optional timeout, optional fallback, initial state and a map of nodes
 graphs:
   # FAQ support graph with navigation menu
   faq-support:
     root: menu
     timeout: 300                   # Session TTL (seconds) — session dies after inactivity
     fallback: invalid         # Where to go if user sends an unexpected response
+    state:                          # Initial session state — persists across nodes
+      customer_name: ""
+      visit_count: 0
     nodes:
       menu:
         on_enter:
@@ -176,7 +201,7 @@ graphs:
 
       escalate:
         on_enter:
-          - escalate            # This action has cooldown
+          - escalate            # This action has cooldown guard
         edges:
           - match: "menu, back"
             goto: menu
@@ -187,6 +212,9 @@ graphs:
       pricing:
         on_enter:
           - pricing
+        state:                        # Per-node state — resets on every re-entry
+          plan: ""
+          budget: 0
         edges:
           - match: "menu, back"
             goto: menu
@@ -224,9 +252,7 @@ graphs:
           - pong
         edges: []
 
-# Bot definitions — keys are the bot IDs, each bot references exactly one graph
 bots:
-  # Support bot using the faq-support graph
   support-bot:
     graph: faq-support
     settings:
@@ -245,28 +271,32 @@ bots:
       ignore_groups: false          # Sales bot might engage in groups
       ignored_senders: []
 
-# Actions can also be loaded from separate files in the actions/ directory:
-#   ~/.config/botforje-js/actions/greet.yml
-#
-# Graphs can also be loaded from separate files in the graphs/ directory:
-#   ~/.config/botforje-js/graphs/faq-support.yml
-#
-# File name becomes the action/graph ID.
+# Actions, graphs, and bots can also be loaded from separate files in their respective
+# directories (actions/, graphs/, bots/) in the config path. The file name becomes the entity ID.
 # Inline definitions in this file take precedence over directory files.
 
 # Notes:
-# - Actions, graphs, and bots all use the same map format: key = ID, value = definition
-# - Bot IDs are the keys in the bots map; they're auto-generated but you can customize them
-# - Each bot references exactly one graph by ID
-# - IDs can only contain lowercase letters, numbers, and hyphens (no start/end hyphens, no consecutive)
-# - Phone numbers are filled after WhatsApp QR code authentication
-# - Edge match phrases are comma-separated, fuzzy-matched (no regex needed)
+# - Each bot references exactly one graph by name
+# - names can only contain lowercase letters, numbers, and hyphens (no start/end hyphens, no consecutive)
+# - bot phone numbers are automatically filled after WhatsApp QR code authentication
+# - Edge match phrases are comma-separated, fuzzy-matched, if fails and ai enabled, llm tries to resolve
 # - fuzzy_threshold: 0.3=strict, 0.6=moderate (default), 0.9=loose
 # - Action cooldowns prevent spam (per sender per action)
 # - Graph sessions automatically expire after timeout seconds of inactivity
 # - fallback handles unexpected user responses without breaking the graph
+# - Graph state defines initial session context (persists across nodes); node state resets on re-entry
 # - Node fields:
 #     on_enter: actions executed automatically when entering the node
 #     on_exit:  actions executed automatically just before leaving the node
-#     can_use: actions the LLM can optionally invoke, each independently (only when AI mode is enabled)
+#     can_use:  actions the LLM can optionally invoke, each independently (only when AI is enabled)
+#     state:    initial per-node context — reset every time the node is entered
+# - Template variables use context-based paths: {{context.path.to.property}}
+#   Read/write contexts (variables can be declared and modified at runtime):
+#     session:  {{session.field}} — persistent across nodes, defined in graph state
+#     node:     {{node.field}} — local to current node, defined in node state, resets on re-entry
+#   Read-only contexts (system-provided):
+#     sender:     {{sender.phone}}, {{sender.name}}
+#     message:    {{message.body}}, {{message.at}}
+#     bot:        {{bot.id}}, {{bot.phone}}, {{bot.graph}}
+#     responses:  {{responses.request-name.field}} — from request steps in the same action
 # - Location actions send a WhatsApp location pin; fields: latitude, longitude, name, address, url, description
