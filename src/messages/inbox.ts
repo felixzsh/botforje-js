@@ -40,11 +40,7 @@ export class InboxService {
         return
       }
 
-      const result = this.senderService.recordMessage(bot.id, message.from, message.senderName)
-
-      if (result.isNew && bot.webhookBaseUrl) {
-        await this.fireNewSenderWebhook(bot, message)
-      }
+      this.senderService.recordMessage(bot, message)
 
       if (this.isSenderNotAllowed(bot, message.from)) {
         this.logger.debug(`Ignoring message from "${message.from}" (senderName="${message.senderName}") for bot "${bot.id}" (sender not in allowed list)`)
@@ -66,39 +62,6 @@ export class InboxService {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
       this.logger.error(`Error handling message for bot "${bot.id}": ${msg}`)
-    }
-  }
-
-  private async fireNewSenderWebhook(bot: Bot, message: IncomingMessage): Promise<void> {
-    const url = `${bot.webhookBaseUrl}/new-sender`
-
-    const payload = {
-      event: 'new-sender',
-      sender: {
-        phone: message.from,
-        name: message.senderName || null,
-      },
-      bot: {
-        id: bot.id,
-        phone: bot.phone || null,
-      },
-      firstSeen: Date.now(),
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(5000),
-      })
-
-      if (!response.ok) {
-        this.logger.warn(`New-sender webhook returned HTTP ${response.status} for bot "${bot.id}"`)
-      }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      this.logger.warn(`New-sender webhook failed for bot "${bot.id}" url="${url}": ${msg}`)
     }
   }
 

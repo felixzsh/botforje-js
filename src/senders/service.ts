@@ -1,4 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
+import { Bot } from '../bot'
+import { IncomingMessage } from '../messages/contracts'
+import { WebhookService } from '../webhooks/service'
 import { getLogger } from '../helpers/logger'
 
 export interface Sender {
@@ -12,9 +15,11 @@ export interface Sender {
 
 export class SenderService {
   private db: DatabaseSync
+  private webhookService?: WebhookService
 
-  constructor(dbPath: string) {
+  constructor(dbPath: string, webhookService?: WebhookService) {
     this.db = new DatabaseSync(dbPath)
+    this.webhookService = webhookService
     this.initTable()
   }
 
@@ -36,8 +41,11 @@ export class SenderService {
     `)
   }
 
-  recordMessage(botId: string, phone: string, name?: string): { isNew: boolean } {
+  recordMessage(bot: Bot, message: IncomingMessage): void {
     const now = Date.now()
+    const phone = message.from
+    const botId = bot.id
+    const name = message.senderName
     const existing = this.db.prepare(
       'SELECT phone, bot_id FROM senders WHERE phone = ? AND bot_id = ?'
     ).get(phone, botId)
@@ -48,14 +56,21 @@ export class SenderService {
         SET name = COALESCE(?, name), last_seen = ?, message_count = message_count + 1
         WHERE phone = ? AND bot_id = ?
       `).run(name || null, now, phone, botId)
-      return { isNew: false }
+      return
     }
 
     this.db.prepare(`
       INSERT INTO senders (phone, bot_id, name, first_seen, last_seen, message_count)
       VALUES (?, ?, ?, ?, ?, 1)
     `).run(phone, botId, name || null, now, now)
-    return { isNew: true }
+
+    if (this.webhookService && bot.webhookBaseUrl) {
+      this.webhookService.fireNewSender(bot.webhookBaseUrl, {
+        sender: { phone, name: name || null },
+        bot: { id: botId, phone: bot.phone || null },
+        firstSeen: now,
+      })
+    }
   }
 
   getSenders(botId?: string, since?: number): Sender[] {

@@ -13,6 +13,7 @@ import { GraphExecutor } from './graph/executor'
 import { SessionManager } from './whatsapp/session'
 import { AuthService } from './auth/service'
 import { SenderService } from './senders/service'
+import { WebhookService } from './webhooks/service'
 import { setGlobalConfig } from './whatsapp/client'
 import { MessageChannel } from './messages/contracts'
 import { getLogger } from './helpers/logger'
@@ -57,7 +58,7 @@ export class BotFleet {
       const dbPath = path.join(dataDir, 'botforje-js.db')
       this.graphStateService = new GraphStateService(dbPath)
       this.authService = new AuthService(dbPath)
-      this.senderService = new SenderService(dbPath)
+      this.senderService = new SenderService(dbPath, new WebhookService())
 
       const graphStateTimeout = configFile.default_timeout ?? 300
       this.graphExecutor = new GraphExecutor(
