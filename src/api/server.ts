@@ -11,6 +11,8 @@ import { createSessionsRouter } from './routes/sessions'
 import { createStatusRouter } from './routes/status'
 import { createConfigRouter } from './routes/config'
 import { createAuthRouter, findSessionToken } from './routes/auth'
+import { createSendersRouter } from './routes/senders'
+import { SenderService } from '../senders/service'
 import { getLogger } from '../helpers/logger'
 
 export class ApiServer {
@@ -22,6 +24,7 @@ export class ApiServer {
   private bots: Map<string, Bot>
   private fleet?: BotFleet
   private configWatcher?: ConfigWatcher
+  private senderService?: SenderService
   private server: any
 
   constructor(
@@ -31,7 +34,8 @@ export class ApiServer {
     port: number = 3000,
     fleet?: BotFleet,
     configWatcher?: ConfigWatcher,
-    address: string = '127.0.0.1'
+    address: string = '127.0.0.1',
+    senderService?: SenderService
   ) {
     this.app = express()
     this.port = port
@@ -41,6 +45,7 @@ export class ApiServer {
     this.bots = bots
     this.fleet = fleet
     this.configWatcher = configWatcher
+    this.senderService = senderService
 
     this.setupMiddleware()
     this.setupAuth()
@@ -94,6 +99,9 @@ export class ApiServer {
     api.use('/messages', createMessagesRouter(this.outboxService, this.bots))
     api.use('/sessions', createSessionsRouter())
     api.use('/status', createStatusRouter(this.bots))
+    if (this.senderService) {
+      api.use('/senders', createSendersRouter(this.senderService))
+    }
     if (this.fleet && this.configWatcher) {
       api.use('/config', createConfigRouter(this.fleet, this.configWatcher))
     }
@@ -107,6 +115,7 @@ export class ApiServer {
         bots: '/api/bots',
         sessions: '/api/sessions',
         status: '/api/status',
+        senders: '/api/senders',
       }
       if (this.fleet && this.configWatcher) {
         endpoints.config = '/api/config'

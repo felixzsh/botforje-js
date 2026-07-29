@@ -66,8 +66,10 @@ export class MockChannel implements MessageChannel {
     return this.phoneNumber
   }
 
-  simulateMessage(message: IncomingMessage): void {
-    this.messageHandlers.forEach(h => h(message))
+  async simulateMessage(message: IncomingMessage): Promise<void> {
+    for (const h of this.messageHandlers) {
+      await h(message)
+    }
   }
 
   simulateReady(): void {

@@ -12,6 +12,7 @@ import { GraphStateService } from './graph/state'
 import { GraphExecutor } from './graph/executor'
 import { SessionManager } from './whatsapp/session'
 import { AuthService } from './auth/service'
+import { SenderService } from './senders/service'
 import { setGlobalConfig } from './whatsapp/client'
 import { MessageChannel } from './messages/contracts'
 import { getLogger } from './helpers/logger'
@@ -28,6 +29,7 @@ export class BotFleet {
   private graphStateService?: GraphStateService
   private graphExecutor?: GraphExecutor
   private authService?: AuthService
+  private senderService?: SenderService
   private isRunning: boolean = false
 
   constructor(outboxService: OutboxService) {
@@ -55,6 +57,7 @@ export class BotFleet {
       const dbPath = path.join(dataDir, 'botforje-js.db')
       this.graphStateService = new GraphStateService(dbPath)
       this.authService = new AuthService(dbPath)
+      this.senderService = new SenderService(dbPath)
 
       const graphStateTimeout = configFile.default_timeout ?? 300
       this.graphExecutor = new GraphExecutor(
@@ -66,7 +69,7 @@ export class BotFleet {
         this.cooldownService
       )
 
-      this.inboxService = new InboxService(this.graphExecutor)
+      this.inboxService = new InboxService(this.graphExecutor, this.senderService)
 
       if (Object.keys(configFile.bots).length === 0) {
         this.logger.warn('No bots configured.')
@@ -107,6 +110,7 @@ export class BotFleet {
       await this.outboxService.shutdown()
       await this.sessionManager.removeAllChannels()
       this.graphStateService?.close()
+      this.senderService?.close()
       this.authService?.close()
       this.bots.clear()
 
@@ -271,5 +275,12 @@ export class BotFleet {
       throw new Error('AuthService not initialized. Call start() first.')
     }
     return this.authService
+  }
+
+  getSenderService(): SenderService {
+    if (!this.senderService) {
+      throw new Error('SenderService not initialized. Call start() first.')
+    }
+    return this.senderService
   }
 }

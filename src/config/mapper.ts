@@ -158,6 +158,7 @@ export function mapConfigToBot(id: string, config: BotConfig): Bot {
     id,
     settings,
     graph,
+    webhookBaseUrl: config.webhook_base_url,
   })
 }
 

@@ -1,11 +1,22 @@
 import { InboxService } from '../../../src/messages/inbox'
 import { GraphExecutor } from '../../../src/graph/executor'
 import { Bot, createBot, createDefaultSettings } from '../../../src/bot'
+import { SenderService } from '../../../src/senders/service'
 import { MockChannel } from '../helpers/mock-channel'
+
+function createMockSenderService(): jest.Mocked<SenderService> {
+  return {
+    recordMessage: jest.fn(),
+    getSenders: jest.fn(),
+    getSender: jest.fn(),
+    close: jest.fn(),
+  } as unknown as jest.Mocked<SenderService>
+}
 
 describe('InboxService', () => {
   let inbox: InboxService
   let graphExecutor: jest.Mocked<GraphExecutor>
+  let senderService: jest.Mocked<SenderService>
   let mockChannel: MockChannel
   let bot: Bot
 
@@ -14,7 +25,10 @@ describe('InboxService', () => {
       handleMessage: jest.fn().mockResolvedValue(true),
     } as unknown as jest.Mocked<GraphExecutor>
 
-    inbox = new InboxService(graphExecutor)
+    senderService = createMockSenderService()
+    senderService.recordMessage.mockReturnValue({ isNew: false })
+
+    inbox = new InboxService(graphExecutor, senderService)
     mockChannel = new MockChannel()
     bot = createBot({ id: 'test-bot', settings: createDefaultSettings() })
     bot.channel = mockChannel
@@ -40,6 +54,19 @@ describe('InboxService', () => {
   describe('message handling', () => {
     beforeEach(() => {
       inbox.registerBot(bot)
+    })
+
+    it('should record sender on every message', async () => {
+      await mockChannel.simulateMessage({
+        id: 'msg-sender',
+        from: '5551112222',
+        to: 'test-bot',
+        content: 'hello',
+        timestamp: new Date(),
+        senderName: 'Test User',
+      })
+
+      expect(senderService.recordMessage).toHaveBeenCalledWith('test-bot', '5551112222', 'Test User')
     })
 
     it('should ignore messages from self', async () => {
@@ -111,6 +138,56 @@ describe('InboxService', () => {
       })
 
       expect(graphExecutor.handleMessage).toHaveBeenCalledTimes(1)
+    })
+
+    it('should record sender even when sender is not allowed', async () => {
+      bot.settings.allowedSenders = ['5550001111']
+      senderService.recordMessage.mockReturnValue({ isNew: false })
+
+      await mockChannel.simulateMessage({
+        id: 'msg-6',
+        from: '9998887777',
+        to: 'test-bot',
+        content: 'hello',
+        timestamp: new Date(),
+        senderName: 'Blocked User',
+      })
+
+      expect(senderService.recordMessage).toHaveBeenCalledWith('test-bot', '9998887777', 'Blocked User')
+      expect(graphExecutor.handleMessage).not.toHaveBeenCalled()
+    })
+
+    it('should fire webhook when new sender and webhookBaseUrl is set', async () => {
+      const origFetch = global.fetch
+      global.fetch = jest.fn().mockResolvedValue({ ok: true } as Response)
+
+      bot.webhookBaseUrl = 'http://localhost:9999/api'
+      senderService.recordMessage.mockReturnValue({ isNew: true })
+
+      await mockChannel.simulateMessage({
+        id: 'msg-7',
+        from: '5551112222',
+        to: 'test-bot',
+        content: 'hello',
+        timestamp: new Date(),
+        senderName: 'New User',
+      })
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://localhost:9999/api/new-sender',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+
+      const callBody = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
+      expect(callBody.event).toBe('new-sender')
+      expect(callBody.sender.phone).toBe('5551112222')
+      expect(callBody.sender.name).toBe('New User')
+      expect(callBody.bot.id).toBe('test-bot')
+
+      global.fetch = origFetch
     })
   })
 })
