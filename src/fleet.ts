@@ -32,6 +32,7 @@ export class BotFleet {
   private authService?: AuthService
   private senderService?: SenderService
   private isRunning: boolean = false
+  private reconnecting: Set<string> = new Set()
 
   constructor(outboxService: OutboxService) {
     this.sessionManager = SessionManager.getInstance()
@@ -148,6 +149,8 @@ export class BotFleet {
       bot.phone = phone
     }
 
+    this.outboxService.resumeProcessing(bot.id)
+
     this.logger.info(`Bot "${bot.id}" linked to session`)
   }
 
@@ -164,6 +167,7 @@ export class BotFleet {
 
     bot.channel.onDisconnected((reason: string) => {
       this.logger.warn(`Bot "${bot.id}" disconnected: ${reason}`)
+      this.reconnectBot(bot)
     })
 
     bot.channel.onAuthFailure((error: Error) => {
@@ -195,6 +199,33 @@ export class BotFleet {
       return
     }
     this.linkSessionToBot(bot, channel)
+  }
+
+  private async reconnectBot(bot: Bot): Promise<void> {
+    if (this.reconnecting.has(bot.id)) return
+    this.reconnecting.add(bot.id)
+
+    let attempt = 0
+    const maxAttempts = 5
+
+    while (attempt < maxAttempts) {
+      attempt++
+      try {
+        await this.sessionManager.registerSession(bot.id, true)
+        break
+      } catch (error) {
+        if (attempt >= maxAttempts) {
+          const msg = error instanceof Error ? error.message : String(error)
+          this.logger.error(`Failed to reconnect bot "${bot.id}" after ${maxAttempts} attempts: ${msg}`)
+          break
+        }
+        const delay = Math.min(1000 * Math.pow(2, attempt), 30000)
+        this.logger.warn(`Reconnect attempt ${attempt}/${maxAttempts} failed for "${bot.id}", retrying in ${delay}ms`)
+        await new Promise(r => setTimeout(r, delay))
+      }
+    }
+
+    this.reconnecting.delete(bot.id)
   }
 
   private setupGracefulShutdown(): void {

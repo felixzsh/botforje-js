@@ -97,7 +97,7 @@ export class OutboxService {
     }
 
     while (botQueue.length > 0) {
-      const messageData = botQueue.shift()!
+      const messageData = botQueue[0]
       const delay = this.delays.get(botId) || 2000
 
       try {
@@ -109,6 +109,7 @@ export class OutboxService {
         const callback = this.sendCallbacks.get(botId)
         if (callback) {
           await callback(botId, messageData.message)
+          botQueue.shift()
           this.logger.info(`Queued message sent successfully: ${messageData.id}`)
         } else {
           this.logger.error(`No send callback configured for bot "${botId}"`)
@@ -117,11 +118,25 @@ export class OutboxService {
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error)
         this.logger.error(`Error sending queued message ${messageData.id} from bot "${botId}": ${msg}`)
+
+        if (msg.includes('detached Frame') || msg.includes('Channel is not connected')) {
+          this.logger.warn(`Connection lost for bot "${botId}", queue paused. Message ${messageData.id} kept for retry.`)
+          break
+        }
+
+        botQueue.shift()
       }
     }
 
     this.processing.set(botId, false)
     this.logger.info(`Queue processing completed for bot "${botId}"`)
+  }
+
+  resumeProcessing(botId: string): void {
+    const queue = this.queues.get(botId)
+    if (queue && queue.length > 0 && !this.processing.get(botId)) {
+      this.startProcessing(botId)
+    }
   }
 
   getBotQueueStatus(botId: string): any {

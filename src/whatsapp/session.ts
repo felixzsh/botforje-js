@@ -101,10 +101,9 @@ export class SessionManager {
     return result
   }
 
-  async registerSession(id: string): Promise<void> {
+  async registerSession(id: string, force = false): Promise<void> {
     if (this.channels.has(id)) {
-      const state = this.states.get(id)
-      if (state === 'connected') {
+      if (!force && this.states.get(id) === 'connected') {
         throw new Error(`Session "${id}" is already authenticated`)
       }
       await this.removeChannel(id)

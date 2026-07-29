@@ -208,21 +208,30 @@ export class WhatsAppChannel implements MessageChannel {
     const whatsappMsg = toWhatsAppFormat(message)
     this.logger.debug(`WhatsApp send options: ${JSON.stringify(whatsappMsg.options, null, 2)}`)
 
-    if (whatsappMsg.options?.type === 'location') {
-      const { latitude, longitude, name, address, url, description } = whatsappMsg.options as Record<string, any>
-      const locationInstance = new Location(latitude, longitude, { name, address, url, description } as any)
-      const { type: _t, latitude: _la, longitude: _lo, name: _n, address: _a, url: _u, description: _d, ...rest } = whatsappMsg.options as Record<string, any>
-      const result = await this.client.sendMessage(whatsappMsg.to, locationInstance, rest)
+    try {
+      if (whatsappMsg.options?.type === 'location') {
+        const { latitude, longitude, name, address, url, description } = whatsappMsg.options as Record<string, any>
+        const locationInstance = new Location(latitude, longitude, { name, address, url, description } as any)
+        const { type: _t, latitude: _la, longitude: _lo, name: _n, address: _a, url: _u, description: _d, ...rest } = whatsappMsg.options as Record<string, any>
+        const result = await this.client.sendMessage(whatsappMsg.to, locationInstance, rest)
+        return result?.id?._serialized ?? generateMessageId()
+      }
+
+      const result = await this.client.sendMessage(
+        whatsappMsg.to,
+        whatsappMsg.content,
+        whatsappMsg.options
+      )
+
       return result?.id?._serialized ?? generateMessageId()
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      if (msg.includes('detached Frame')) {
+        this.isConnected = false
+        this.disconnectedHandlers.forEach(h => h('Frame detached'))
+      }
+      throw error
     }
-
-    const result = await this.client.sendMessage(
-      whatsappMsg.to,
-      whatsappMsg.content,
-      whatsappMsg.options
-    )
-
-    return result?.id?._serialized ?? generateMessageId()
   }
 
   onMessage(handler: MessageHandler): void {

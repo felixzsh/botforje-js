@@ -140,4 +140,40 @@ describe('WhatsAppChannel', () => {
       { type: 'text', foo: 'bar' }
     )
   })
+
+  describe('detached frame handling', () => {
+    async function createChannelWithMockedSend(rejectWith: Error): Promise<{ channel: WhatsAppChannel, disconnectedSpy: jest.Mock }> {
+      const channel = new WhatsAppChannel('test-bot')
+      ;(channel as any).isConnected = true
+      const clientInstance = mockedClient.mock.results[0].value
+      clientInstance.sendMessage.mockRejectedValue(rejectWith)
+      const disconnectedSpy = jest.fn()
+      channel.onDisconnected(disconnectedSpy)
+      return { channel, disconnectedSpy }
+    }
+
+    it('should set isConnected to false on detached frame error', async () => {
+      const { channel } = await createChannelWithMockedSend(new Error('Attempted to use detached Frame \'ABCD1234\'.'))
+      const message: OutgoingMessage = { to: '521234567890', content: 'Hi' }
+
+      await expect(channel.send(message)).rejects.toThrow('detached Frame')
+      expect((channel as any).isConnected).toBe(false)
+    })
+
+    it('should fire disconnected handlers on detached frame error', async () => {
+      const { channel, disconnectedSpy } = await createChannelWithMockedSend(new Error('Attempted to use detached Frame \'ABCD1234\'.'))
+      const message: OutgoingMessage = { to: '521234567890', content: 'Hi' }
+
+      await expect(channel.send(message)).rejects.toThrow('detached Frame')
+      expect(disconnectedSpy).toHaveBeenCalledWith('Frame detached')
+    })
+
+    it('should not change isConnected on non-frame errors', async () => {
+      const { channel } = await createChannelWithMockedSend(new Error('Some other error'))
+      const message: OutgoingMessage = { to: '521234567890', content: 'Hi' }
+
+      await expect(channel.send(message)).rejects.toThrow('Some other error')
+      expect((channel as any).isConnected).toBe(true)
+    })
+  })
 })
