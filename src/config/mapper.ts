@@ -158,8 +158,12 @@ export function mapConfigToBot(id: string, config: BotConfig): Bot {
     id,
     settings,
     graph,
-    webhookBaseUrl: config.webhook_base_url,
-    webhookHeaders: config.webhook_headers,
+    webhooks: config.webhooks
+      ? {
+          url: config.webhooks.url,
+          headers: config.webhooks.headers,
+        }
+      : undefined,
   })
 }
 

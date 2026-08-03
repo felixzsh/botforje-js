@@ -1,13 +1,18 @@
 import { MessageChannel } from './messages/contracts'
 import { validateId } from './config/validation'
+import { HttpHeaders } from './config/schema'
+
+export interface BotWebhooks {
+  url?: string
+  headers?: HttpHeaders
+}
 
 export interface Bot {
   id: string
   phone?: string
   settings: BotSettings
   graph: string
-  webhookBaseUrl?: string
-  webhookHeaders?: Record<string, string>
+  webhooks?: BotWebhooks
   channel?: MessageChannel
 }
 
@@ -26,8 +31,7 @@ export function createBot(props: {
   phone?: string
   settings: BotSettings
   graph?: string
-  webhookBaseUrl?: string
-  webhookHeaders?: Record<string, string>
+  webhooks?: BotWebhooks
 }): Bot {
   validateId(props.id, 'Bot')
 
@@ -36,8 +40,7 @@ export function createBot(props: {
     phone: props.phone,
     settings: props.settings,
     graph: props.graph || '',
-    webhookBaseUrl: props.webhookBaseUrl,
-    webhookHeaders: props.webhookHeaders,
+    webhooks: props.webhooks,
   }
 }
 

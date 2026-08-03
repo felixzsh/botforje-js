@@ -64,12 +64,12 @@ export class SenderService {
       VALUES (?, ?, ?, ?, ?, 1)
     `).run(phone, botId, name || null, now, now)
 
-    if (this.webhookService && bot.webhookBaseUrl) {
-      this.webhookService.fireNewSender(bot.webhookBaseUrl, {
+    if (this.webhookService && bot.webhooks?.url) {
+      this.webhookService.fireNewSender(bot.webhooks.url, {
         sender: { phone, name: name || null },
         bot: { id: botId, phone: bot.phone || null },
         firstSeen: now,
-      }, bot.webhookHeaders)
+      }, bot.webhooks.headers)
     }
   }
 

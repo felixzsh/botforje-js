@@ -3,7 +3,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { SenderService } from '../../../src/senders/service'
 import { WebhookService } from '../../../src/webhooks/service'
-import { Bot, createBot, createDefaultSettings } from '../../../src/bot'
+import { Bot, BotWebhooks, createBot, createDefaultSettings } from '../../../src/bot'
 import { IncomingMessage } from '../../../src/messages/contracts'
 
 function msg(from: string, name?: string): IncomingMessage {
@@ -17,8 +17,8 @@ function msg(from: string, name?: string): IncomingMessage {
   }
 }
 
-function bot(id: string, webhookBaseUrl?: string): Bot {
-  return createBot({ id, settings: createDefaultSettings(), webhookBaseUrl })
+function bot(id: string, webhooks?: BotWebhooks): Bot {
+  return createBot({ id, settings: createDefaultSettings(), webhooks })
 }
 
 describe('SenderService', () => {
@@ -97,7 +97,7 @@ describe('SenderService', () => {
 
     const ws = new WebhookService()
     const svc = new SenderService(dbPath.replace('.db', '-wh.db'), ws)
-    svc.recordMessage(bot('test-bot', 'http://example.com/api'), msg('5551112222', 'Test User'))
+    svc.recordMessage(bot('test-bot', { url: 'http://example.com/api' }), msg('5551112222', 'Test User'))
 
     expect(global.fetch).toHaveBeenCalledWith(
       'http://example.com/api/new-sender',
@@ -118,10 +118,10 @@ describe('SenderService', () => {
     const wsSpy = jest.spyOn(ws, 'fireNewSender').mockResolvedValue(undefined)
 
     const svc = new SenderService(dbPath.replace('.db', '-existing.db'), ws)
-    svc.recordMessage(bot('test-bot', 'http://example.com/api'), msg('5551112222', 'User'))
+    svc.recordMessage(bot('test-bot', { url: 'http://example.com/api' }), msg('5551112222', 'User'))
     expect(wsSpy).toHaveBeenCalledTimes(1)
 
-    svc.recordMessage(bot('test-bot', 'http://example.com/api'), msg('5551112222', 'User'))
+    svc.recordMessage(bot('test-bot', { url: 'http://example.com/api' }), msg('5551112222', 'User'))
     expect(wsSpy).toHaveBeenCalledTimes(1)
 
     wsSpy.mockRestore()
@@ -129,7 +129,7 @@ describe('SenderService', () => {
     if (existsSync(dbPath.replace('.db', '-existing.db'))) unlinkSync(dbPath.replace('.db', '-existing.db'))
   })
 
-  it('should not fire webhook when bot has no webhookBaseUrl', () => {
+  it('should not fire webhook when bot has no webhooks.url', () => {
     const ws = new WebhookService()
     const wsSpy = jest.spyOn(ws, 'fireNewSender').mockResolvedValue(undefined)
 

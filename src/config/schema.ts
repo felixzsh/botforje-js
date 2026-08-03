@@ -1,3 +1,5 @@
+export type HttpHeaders = Record<string, string>
+
 export interface BotSettingsConfig {
   simulate_typing?: boolean
   typing_delay?: number
@@ -8,18 +10,22 @@ export interface BotSettingsConfig {
   ignored_senders?: string[]
 }
 
+export interface WebhookConfig {
+  url?: string
+  headers?: HttpHeaders
+}
+
 export interface BotConfig {
   graph?: string
   settings?: BotSettingsConfig
-  webhook_base_url?: string
-  webhook_headers?: Record<string, string>
+  webhooks?: WebhookConfig
 }
 
 export interface RequestStepConfig {
   name?: string
   url: string
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH'
-  headers?: Record<string, string>
+  headers?: HttpHeaders
   timeout?: number
   retry?: number
 }

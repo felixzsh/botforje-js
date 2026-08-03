@@ -271,6 +271,16 @@ bots:
       ignore_groups: false          # Sales bot might engage in groups
       ignored_senders: []
 
+  # Bot with native webhooks: all native fires (e.g. new-sender) POST to
+  # webhooks.url + a fixed endpoint (e.g. /new-sender). Optional webhooks.headers
+  # are merged into every webhook request (same shape as request step headers).
+  webhook-bot:
+    graph: faq-support
+    webhooks:
+      url: "https://example.com/api/botforge"
+      headers:
+        X-API-Key: "your-secret-key"
+
 # Actions, graphs, and bots can also be loaded from separate files in their respective
 # directories (actions/, graphs/, bots/) in the config path. The file name becomes the entity ID.
 # Inline definitions in this file take precedence over directory files.

@@ -221,6 +221,33 @@ describe('Mapper', () => {
       expect(bot.settings.ignoreGroups).toBe(false)
     })
 
+    it('should map bot with webhooks config', () => {
+      const bot = mapConfigToBot('webhook-bot', {
+        graph: 'faq-menu',
+        webhooks: {
+          url: 'https://example.com/api/botforge',
+          headers: {
+            'X-API-Key': 'secret',
+            Authorization: 'Bearer token',
+          },
+        },
+      })
+
+      expect(bot.webhooks).toEqual({
+        url: 'https://example.com/api/botforge',
+        headers: {
+          'X-API-Key': 'secret',
+          Authorization: 'Bearer token',
+        },
+      })
+    })
+
+    it('should leave webhooks undefined when not configured', () => {
+      const bot = mapConfigToBot('plain-bot', { graph: 'faq-menu' })
+
+      expect(bot.webhooks).toBeUndefined()
+    })
+
     it('should throw error for invalid bot ID', () => {
       expect(() => mapConfigToBot('ab', {})).toThrow('Bot ID must be at least 3 characters long')
     })
