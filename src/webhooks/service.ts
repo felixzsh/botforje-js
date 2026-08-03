@@ -8,13 +8,16 @@ export interface NewSenderPayload {
 
 // CONSIDERATION: this shouldnt be that specific for a generic fetch
 export class WebhookService {
-  async fireNewSender(baseUrl: string, payload: NewSenderPayload): Promise<void> {
+  async fireNewSender(baseUrl: string, payload: NewSenderPayload, headers?: Record<string, string>): Promise<void> {
     const url = `${baseUrl}/new-sender`
 
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(headers || {}),
+        },
         body: JSON.stringify({
           event: 'new-sender',
           sender: payload.sender,

@@ -7,6 +7,7 @@ export interface Bot {
   settings: BotSettings
   graph: string
   webhookBaseUrl?: string
+  webhookHeaders?: Record<string, string>
   channel?: MessageChannel
 }
 
@@ -26,6 +27,7 @@ export function createBot(props: {
   settings: BotSettings
   graph?: string
   webhookBaseUrl?: string
+  webhookHeaders?: Record<string, string>
 }): Bot {
   validateId(props.id, 'Bot')
 
@@ -35,6 +37,7 @@ export function createBot(props: {
     settings: props.settings,
     graph: props.graph || '',
     webhookBaseUrl: props.webhookBaseUrl,
+    webhookHeaders: props.webhookHeaders,
   }
 }
 

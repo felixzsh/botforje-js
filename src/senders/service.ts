@@ -69,7 +69,7 @@ export class SenderService {
         sender: { phone, name: name || null },
         bot: { id: botId, phone: bot.phone || null },
         firstSeen: now,
-      })
+      }, bot.webhookHeaders)
     }
   }
 

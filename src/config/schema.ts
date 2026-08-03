@@ -12,6 +12,7 @@ export interface BotConfig {
   graph?: string
   settings?: BotSettingsConfig
   webhook_base_url?: string
+  webhook_headers?: Record<string, string>
 }
 
 export interface RequestStepConfig {
