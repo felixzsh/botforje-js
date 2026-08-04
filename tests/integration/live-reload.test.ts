@@ -262,4 +262,27 @@ describe('Live reload integration', () => {
     expect(fleet.getBots().has('newbot')).toBe(true)
     expect(fleet.getBots().has('dummy')).toBe(true)
   })
+
+  it('re-applies outbox queue delay when bot settings change via reload', async () => {
+    writeActions({ greet: 'Hello' })
+    writeGraphs({
+      faq: `root: greet\nnodes:\n  greet:\n    action: greet\n    edges: []`,
+    })
+    writeBots({ testbot: 'graph: faq\nsettings:\n  queue_delay: 1000' })
+    writeMainConfig()
+
+    const config = await loadConfig(configPath)
+    await fleet.start(config)
+    watcher = new ConfigWatcher(fleet, configPath)
+
+    writeBots({ testbot: 'graph: faq\nsettings:\n  queue_delay: 5000' })
+    await watcher.reload()
+
+    const bot = fleet.getBots().get('testbot')
+    expect(bot?.settings.queueDelay).toBe(5000)
+    const setupBotQueueMock = outbox.setupBotQueue as jest.Mock
+    expect(setupBotQueueMock).toHaveBeenCalled()
+    const lastCall = setupBotQueueMock.mock.calls[setupBotQueueMock.mock.calls.length - 1][0] as { settings: { queueDelay: number } }
+    expect(lastCall.settings.queueDelay).toBe(5000)
+  })
 })

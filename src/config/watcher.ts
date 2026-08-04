@@ -92,6 +92,7 @@ export class ConfigWatcher {
             const graphChanged = existing.graph !== bot.graph
             existing.settings = bot.settings
             existing.graph = bot.graph
+            this.fleet.getOutboxService().setupBotQueue(existing)
             if (graphChanged) {
               this.fleet.getGraphExecutor()?.clearBotSessions(bot.id)
               this.logger.info(`Graph changed for bot "${bot.id}" — active sessions cleared`)
